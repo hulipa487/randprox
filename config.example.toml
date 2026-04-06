@@ -1,0 +1,13 @@
+[proxy]
+bind = "0.0.0.0:8080"
+
+[admin]
+bind = "0.0.0.0:8081"
+default_username = "admin"
+default_password = "changeMe123!"
+
+[database]
+path = "./randprox.db"
+
+[logging]
+path = "./randprox.log"

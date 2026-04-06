@@ -1,0 +1,30 @@
+# Binaries
+randprox
+randprox.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Config
+config.toml
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+
+# IDE
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Go
+go.work
+go.work.sum
