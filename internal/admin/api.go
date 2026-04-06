@@ -58,11 +58,7 @@ func (h *APIHandler) SetupRoutes(r *gin.Engine) {
 	}
 
 	// Serve frontend (catch-all)
-	r.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "randprox admin API",
-		})
-	})
+	r.NoRoute(ServeFrontend())
 }
 
 // Login handles admin login
@@ -366,13 +362,5 @@ func (h *APIHandler) GetUserStats(c *gin.Context) {
 		"total_bytes_up":   up,
 		"total_bytes_down": down,
 		"daily":            daily,
-	})
-}
-
-// ServeFrontend serves the Vue.js frontend
-func (h *APIHandler) ServeFrontend(c *gin.Context) {
-	// For now, just return a placeholder
-	c.JSON(http.StatusOK, gin.H{
-		"message": "randprox admin API - frontend coming soon",
 	})
 }

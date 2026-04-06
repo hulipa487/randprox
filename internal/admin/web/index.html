@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>randprox Admin</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { background: #333; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn:hover { opacity: 0.9; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .form-group textarea { min-height: 200px; font-family: monospace; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f9f9f9; font-weight: 600; }
+        .actions { display: flex; gap: 8px; }
+        .error { color: #dc3545; padding: 10px; background: #fff3f3; border-radius: 4px; margin-bottom: 15px; }
+        .success { color: #28a745; padding: 10px; background: #f3fff4; border-radius: 4px; margin-bottom: 15px; }
+        .login-box { max-width: 400px; margin: 100px auto; }
+        .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: white; padding: 30px; border-radius: 8px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        .stat-card { background: #f8f9fa; padding: 15px; border-radius: 8px; }
+        .stat-value { font-size: 24px; font-weight: bold; }
+        .stat-label { color: #666; font-size: 14px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div v-if="!token" class="login-box">
+            <div class="card">
+                <h2 style="margin-bottom: 20px;">randprox Admin Login</h2>
+                <div v-if="error" class="error">{{ error }}</div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" v-model="loginUsername" @keyup.enter="login">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" v-model="loginPassword" @keyup.enter="login">
+                </div>
+                <button class="btn btn-primary" @click="login" style="width: 100%;">Login</button>
+            </div>
+        </div>
+
+        <div v-else class="container">
+            <div class="header">
+                <h1>randprox Admin</h1>
+                <div style="display: flex; gap: 10px;">
+                    <span style="align-self: center;">Logged in as {{ adminUsername }}</span>
+                    <button class="btn btn-secondary" @click="showChangePassword = true">Change Password</button>
+                    <button class="btn btn-secondary" @click="logout">Logout</button>
+                </div>
+            </div>
+
+            <div v-if="error" class="error">{{ error }}</div>
+            <div v-if="success" class="success">{{ success }}</div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>Users</h2>
+                    <button class="btn btn-primary" @click="openCreateModal">Create User</button>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Username</th>
+                            <th>Active</th>
+                            <th>Bytes Up</th>
+                            <th>Bytes Down</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="user in users" :key="user.id">
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.is_active ? 'Yes' : 'No' }}</td>
+                            <td>{{ formatBytes(user.bytes_up) }}</td>
+                            <td>{{ formatBytes(user.bytes_down) }}</td>
+                            <td class="actions">
+                                <button class="btn btn-primary" @click="openEditModal(user)">Edit</button>
+                                <button class="btn btn-secondary" @click="viewStats(user)">Stats</button>
+                                <button class="btn btn-secondary" @click="reloadUser(user)">Reload</button>
+                                <button class="btn btn-danger" @click="deleteUser(user)">Delete</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Create/Edit User Modal -->
+            <div v-if="showModal" class="modal" @click.self="closeModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>{{ editingUser ? 'Edit User' : 'Create User' }}</h2>
+                        <button class="btn btn-secondary" @click="closeModal">Close</button>
+                    </div>
+                    <div v-if="modalError" class="error">{{ modalError }}</div>
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" v-model="formUsername">
+                    </div>
+                    <div class="form-group">
+                        <label>Password {{ editingUser ? '(leave blank to keep current)' : '' }}</label>
+                        <input type="password" v-model="formPassword">
+                    </div>
+                    <div class="form-group" v-if="editingUser">
+                        <label>Active</label>
+                        <select v-model="formIsActive">
+                            <option :value="true">Yes</option>
+                            <option :value="false">No</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>WireGuard Config</label>
+                        <div style="margin-bottom: 10px;">
+                            <input type="file" @change="handleFileUpload" accept=".conf">
+                            <span style="margin-left: 10px; font-size: 12px; color: #666;">Or paste below:</span>
+                        </div>
+                        <textarea v-model="formWireguardConfig" placeholder="[Interface]
+PrivateKey = ...
+Address = ...
+[Peer]
+PublicKey = ...
+Endpoint = ...
+AllowedIPs = 0.0.0.0/0, ::/0"></textarea>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" @click="saveUser">Save</button>
+                        <button class="btn btn-secondary" @click="closeModal">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Modal -->
+            <div v-if="showStatsModal" class="modal" @click.self="showStatsModal = false">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Stats for {{ statsUser.username }}</h2>
+                        <button class="btn btn-secondary" @click="showStatsModal = false">Close</button>
+                    </div>
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div class="stat-value">{{ formatBytes(userStats.total_bytes_up) }}</div>
+                            <div class="stat-label">Total Upload</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">{{ formatBytes(userStats.total_bytes_down) }}</div>
+                            <div class="stat-label">Total Download</div>
+                        </div>
+                    </div>
+                    <h3 style="margin-bottom: 15px;">Last 30 Days</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Bytes Up</th>
+                                <th>Bytes Down</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="day in userStats.daily" :key="day.id">
+                                <td>{{ formatDate(day.date) }}</td>
+                                <td>{{ formatBytes(day.bytes_up) }}</td>
+                                <td>{{ formatBytes(day.bytes_down) }}</td>
+                            </tr>
+                            <tr v-if="!userStats.daily || userStats.daily.length === 0">
+                                <td colspan="3" style="text-align: center; color: #999;">No data available</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Change Password Modal -->
+            <div v-if="showChangePassword" class="modal" @click.self="showChangePassword = false">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Change Admin Password</h2>
+                        <button class="btn btn-secondary" @click="showChangePassword = false">Close</button>
+                    </div>
+                    <div v-if="changePasswordError" class="error">{{ changePasswordError }}</div>
+                    <div class="form-group">
+                        <label>New Password</label>
+                        <input type="password" v-model="newAdminPassword">
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" @click="changePassword">Change Password</button>
+                        <button class="btn btn-secondary" @click="showChangePassword = false">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const token = ref(localStorage.getItem('token') || '');
+                const adminUsername = ref(localStorage.getItem('adminUsername') || '');
+                const error = ref('');
+                const success = ref('');
+                const loginUsername = ref('');
+                const loginPassword = ref('');
+                const users = ref([]);
+                const showModal = ref(false);
+                const showStatsModal = ref(false);
+                const showChangePassword = ref(false);
+                const editingUser = ref(null);
+                const modalError = ref('');
+                const formUsername = ref('');
+                const formPassword = ref('');
+                const formIsActive = ref(true);
+                const formWireguardConfig = ref('');
+                const statsUser = ref({});
+                const userStats = ref({ total_bytes_up: 0, total_bytes_down: 0, daily: [] });
+                const newAdminPassword = ref('');
+                const changePasswordError = ref('');
+
+                const apiCall = async (url, options = {}) => {
+                    const headers = { ...options.headers };
+                    if (token.value) {
+                        headers['Authorization'] = `Bearer ${token.value}`;
+                    }
+
+                    const response = await fetch(`/api${url}`, {
+                        ...options,
+                        headers
+                    });
+
+                    if (response.status === 401) {
+                        logout();
+                        throw new Error('Unauthorized');
+                    }
+
+                    return response;
+                };
+
+                const clearMessages = () => {
+                    error.value = '';
+                    success.value = '';
+                };
+
+                const login = async () => {
+                    clearMessages();
+                    try {
+                        const response = await apiCall('/admin/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                username: loginUsername.value,
+                                password: loginPassword.value
+                            })
+                        });
+
+                        if (!response.ok) throw new Error('Invalid credentials');
+
+                        const data = await response.json();
+                        token.value = data.token;
+                        adminUsername.value = data.username;
+                        localStorage.setItem('token', token.value);
+                        localStorage.setItem('adminUsername', adminUsername.value);
+                        await loadUsers();
+                    } catch (e) {
+                        error.value = e.message;
+                    }
+                };
+
+                const logout = () => {
+                    token.value = '';
+                    adminUsername.value = '';
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('adminUsername');
+                };
+
+                const loadUsers = async () => {
+                    clearMessages();
+                    try {
+                        const response = await apiCall('/users');
+                        users.value = await response.json();
+                    } catch (e) {
+                        error.value = 'Failed to load users';
+                    }
+                };
+
+                const openCreateModal = () => {
+                    editingUser.value = null;
+                    formUsername.value = '';
+                    formPassword.value = '';
+                    formWireguardConfig.value = '';
+                    formIsActive.value = true;
+                    modalError.value = '';
+                    showModal.value = true;
+                };
+
+                const openEditModal = (user) => {
+                    editingUser.value = user;
+                    formUsername.value = user.username;
+                    formPassword.value = '';
+                    formWireguardConfig.value = '';
+                    formIsActive.value = user.is_active;
+                    modalError.value = '';
+                    showModal.value = true;
+                };
+
+                const closeModal = () => {
+                    showModal.value = false;
+                    editingUser.value = null;
+                };
+
+                const handleFileUpload = (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            formWireguardConfig.value = e.target.result;
+                        };
+                        reader.readAsText(file);
+                    }
+                };
+
+                const saveUser = async () => {
+                    modalError.value = '';
+                    try {
+                        const formData = new FormData();
+                        if (formUsername.value) formData.append('username', formUsername.value);
+                        if (formPassword.value) formData.append('password', formPassword.value);
+                        if (formWireguardConfig.value) formData.append('wireguard_config', formWireguardConfig.value);
+                        if (editingUser.value) {
+                            formData.append('is_active', formIsActive.value);
+                        }
+
+                        const url = editingUser.value ? `/users/${editingUser.value.id}` : '/users';
+                        const method = editingUser.value ? 'PUT' : 'POST';
+
+                        const response = await apiCall(url, { method, body: formData });
+
+                        if (!response.ok) {
+                            const err = await response.json();
+                            throw new Error(err.error || 'Failed to save user');
+                        }
+
+                        closeModal();
+                        success.value = editingUser.value ? 'User updated successfully' : 'User created successfully';
+                        await loadUsers();
+                        setTimeout(() => success.value = '', 3000);
+                    } catch (e) {
+                        modalError.value = e.message;
+                    }
+                };
+
+                const deleteUser = async (user) => {
+                    if (!confirm(`Are you sure you want to delete user "${user.username}"?`)) return;
+                    clearMessages();
+                    try {
+                        const response = await apiCall(`/users/${user.id}`, { method: 'DELETE' });
+                        if (!response.ok) throw new Error('Failed to delete user');
+                        success.value = 'User deleted successfully';
+                        await loadUsers();
+                        setTimeout(() => success.value = '', 3000);
+                    } catch (e) {
+                        error.value = e.message;
+                    }
+                };
+
+                const reloadUser = async (user) => {
+                    clearMessages();
+                    try {
+                        const response = await apiCall(`/users/${user.id}/reload`, { method: 'POST' });
+                        if (!response.ok) throw new Error('Failed to reload user');
+                        success.value = 'User reloaded successfully';
+                        setTimeout(() => success.value = '', 3000);
+                    } catch (e) {
+                        error.value = e.message;
+                    }
+                };
+
+                const viewStats = async (user) => {
+                    statsUser.value = user;
+                    userStats.value = { total_bytes_up: 0, total_bytes_down: 0, daily: [] };
+                    showStatsModal.value = true;
+                    try {
+                        const response = await apiCall(`/users/${user.id}/stats`);
+                        userStats.value = await response.json();
+                    } catch (e) {
+                        console.error('Failed to load stats', e);
+                    }
+                };
+
+                const changePassword = async () => {
+                    changePasswordError.value = '';
+                    try {
+                        const response = await apiCall('/admin/change-password', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ new_password: newAdminPassword.value })
+                        });
+                        if (!response.ok) throw new Error('Failed to change password');
+                        showChangePassword.value = false;
+                        newAdminPassword.value = '';
+                        success.value = 'Password changed successfully';
+                        setTimeout(() => success.value = '', 3000);
+                    } catch (e) {
+                        changePasswordError.value = e.message;
+                    }
+                };
+
+                const formatBytes = (bytes) => {
+                    if (!bytes) return '0 B';
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                };
+
+                const formatDate = (date) => {
+                    return new Date(date).toLocaleDateString();
+                };
+
+                onMounted(() => {
+                    if (token.value) {
+                        loadUsers();
+                    }
+                });
+
+                return {
+                    token, adminUsername, error, success, loginUsername, loginPassword,
+                    users, showModal, showStatsModal, showChangePassword,
+                    editingUser, modalError, formUsername, formPassword,
+                    formIsActive, formWireguardConfig, statsUser, userStats,
+                    newAdminPassword, changePasswordError,
+                    login, logout, openCreateModal, openEditModal,
+                    closeModal, handleFileUpload, saveUser, deleteUser,
+                    reloadUser, viewStats, changePassword, formatBytes, formatDate
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
