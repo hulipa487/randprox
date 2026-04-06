@@ -17,8 +17,7 @@ A multi-user WireGuard HTTP proxy with an admin panel.
 ```
 randprox/
 ├── cmd/
-│   └── randprox/
-│       └── main.go                 # Main application entry point
+│   └── main.go                     # Main application entry point
 ├── internal/
 │   ├── config/
 │   │   └── config.go               # TOML config file parser
@@ -48,7 +47,7 @@ randprox/
 Requires Go 1.25+ and CGO (for SQLite):
 
 ```bash
-CGO_ENABLED=1 go build -o randprox ./cmd/randprox
+CGO_ENABLED=1 go build -o randprox ./cmd
 ```
 
 ## Configuration
